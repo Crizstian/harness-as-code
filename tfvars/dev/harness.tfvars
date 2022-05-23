@@ -1,6 +1,6 @@
 project          = "harness-lab-350713"
 cluster_location = "us-central1"
-account_id       = "< token >" 
-delegate_token   = "< token >" 
+account_id       = "kg9Fr5UcRxSJo3lgsU9yDg" 
+delegate_token   = "557d949addc5be4a834b6f8f11cd4c2b" 
 delegate_name    = "terraform-lab" 
 namespace        = "harness-delegate-ng" 

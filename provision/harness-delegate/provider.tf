@@ -1,3 +1,10 @@
+terraform { 
+  backend "gcs" { 
+    bucket = "harness-crr-lab" 
+    prefix = "terraform/harness-delagate.state" 
+  } 
+} 
+
 provider "google" {
   project = var.project
   region  = var.cluster_location
