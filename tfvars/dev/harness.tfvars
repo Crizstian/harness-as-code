@@ -1,0 +1,6 @@
+project          = "harness-lab-350713"
+cluster_location = "us-central1"
+account_id       = "< token >" 
+delegate_token   = "< token >" 
+delegate_name    = "terraform-lab" 
+namespace        = "harness-delegate-ng" 

@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.delegateName | quote }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "harness-delegate.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      harness.io/name: {{ .Values.delegateName | quote }}
+  serviceName: ""    
+  template:
+    metadata:
+      labels:
+        harness.io/name: {{ .Values.delegateName | quote }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.grpcServiceConnectorPort }}
+          env:
+          - name: DELEGATE_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          envFrom:
+          - configMapRef:
+              name: {{ .Values.delegateName }}-configmap
+          - secretRef:
+              name: {{ .Values.delegateName }}-secret
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          # readinessProbe:
+          #   exec:
+          #     command:
+          #       - test
+          #       - -s
+          #       - delegate.log
+          #   initialDelaySeconds: 20
+          #   periodSeconds: 10
+          # livenessProbe:
+          #   exec:
+          #     command:
+          #       - bash
+          #       - -c
+          #       - '[[ -e /opt/harness-delegate/msg/data/watcher-data && $(($(date +%s000) - $(grep heartbeat /opt/harness-delegate/msg/data/watcher-data | cut -d ":" -f 2 | cut -d "," -f 1))) -lt 300000 ]]'
+          #   initialDelaySeconds: 240
+          #   periodSeconds: 10
+          #   failureThreshold: 2
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

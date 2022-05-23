@@ -1,0 +1,94 @@
+{
+  "dockerComposeFile": [
+    "docker-compose.yml"
+  ],
+  "service": "workspace",
+  "shutdownAction": "stopCompose",
+  "workspaceFolder": "/workspace",
+  "settings": {
+    "docker.explorerRefreshInterval": "3000ms",
+    "files.eol": "\n",
+    "files.exclude": {
+      "**/.vagrant": true,
+      "**/.git": true
+    },
+    "[settings.json]": {
+      "editor.formatOnSave": false
+    },
+    "[devcontainer.json]": {
+      "editor.formatOnSave": false
+    },
+    "terminal.integrated.profiles.linux": {
+      "bash (login)": {
+          "path": "/bin/bash",
+          "args": [
+              "--login"
+          ]
+      }
+    },
+    "go.testFlags": [
+      "-v",
+      "-timeout",
+      "5m"
+    ],
+    "go.toolsManagement.checkForUpdates": false,
+    "go.gopath": "/go",
+    "go.useLanguageServer": true,
+    "go.autocompleteUnimportedPackages": true,
+    "go.gotoSymbol.includeImports": true,
+    "go.gotoSymbol.includeGoroot": true,
+    "gopls": {
+      "completeUnimported": true,
+      "deepCompletion": true,
+      "usePlaceholders": false,
+      "staticcheck": true
+    },
+    "go.buildOnSave": "package",
+    "go.lintOnSave": "package",
+    "go.vetOnSave": "package",
+    "go.testOnSave": false,
+    "[go]": {
+      "editor.formatOnSave": true,
+      "editor.codeActionsOnSave": {
+        "source.organizeImports": true
+      },
+      "editor.snippetSuggestions": "none"
+    },
+    "[go.mod]": {
+      "editor.formatOnSave": true,
+      "editor.codeActionsOnSave": {
+        "source.organizeImports": true
+      }
+    },
+    "go.lintTool": "golangci-lint",
+    "go.lintFlags": [
+      "run",
+      "--config",
+      "${workspaceFolder}/.golangci.yml"
+    ]
+  },
+  "extensions": [
+    "golang.Go",
+    "bungcip.better-toml",
+    "mutantdino.resourcemonitor",
+    "TabNine.tabnine-vscode",
+    "EditorConfig.EditorConfig",
+    "kevinkyang.auto-comment-blocks",
+    "ms-azuretools.vscode-docker",
+    "karyfoundation.comment",
+    "wmaurer.change-case",
+    "skellock.just",
+    "wholroyd.hcl",
+    "gruntfuggly.todo-tree"
+  ],
+  "forwardPorts": [
+    5555,
+    8500,
+    8200,
+    1948
+  ],
+  "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"
+  ],
+  "remoteUser": "devel"
+}

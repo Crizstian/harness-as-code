@@ -1,0 +1,214 @@
+version: "3"
+x-logging-json: &my-logging
+  logging:
+    driver: json-file
+    options:
+      max-size: "10M"
+      max-file: "5"
+x-consul-proto: &consul-proto
+  image: consul:latest
+  restart: unless-stopped
+  env_file:
+    - ".env"
+  environment:
+    CONSUL_HTTP_ADDR: http://0.0.0.0:8500
+    CONSUL_LOCAL_CONFIG: >
+      {
+        "acl" : {
+          "tokens": {
+            "master" : "root"
+          },
+          "default_policy" : "deny",
+          "enable_token_persistence" : true,
+          "enabled" : true
+        },
+        "connect" : {
+          "enabled" : true
+        },
+        "log_level":"INFO",
+        "log_file":"/consul/logs/consul.log",
+        "data_dir": "/var/consul/data",
+        "bootstrap": true,
+        "server": true,
+        "primary_datacenter": "us-west-1",
+        "datacenter": "us-west-1"
+      }
+  networks:
+    - lictor-consul-network
+  expose:
+    - 8300
+    - 8400
+    - 8500
+    - 8600
+  volumes:
+    - consul:/consul
+    - ../fixtures/consul/policies:/consul/config/policies:ro
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://0.0.0.0:8500/v1/status/leader"]
+    interval: 30s
+    timeout: 5s
+    retries: 10
+    start_period: 5s
+  command:
+    - /bin/sh
+    - -cex
+    - |
+      mkdir -p /consul/logs
+      chown "consul:consul" /consul/logs -R
+      docker-entrypoint.sh agent -server -client=0.0.0.0 -bind=0.0.0.0 -ui &
+      while ! $$(consul info &> /dev/null); do echo "Trying to connect to consul"; sleep 2; done
+      consul acl policy create -name lictor -rules @/consul/config/policies/lictor.hcl || true
+      while sleep 1000; do :; done
+# docker-compose -f .devcontainer/docker-compose.yml up consul-server
+x-vault-proto: &vault-proto
+  image: vault:latest
+  restart: unless-stopped
+  env_file:
+    - ".env"
+  environment:
+    VAULT_ADDR: http://0.0.0.0:8200
+    VAULT_LOCAL_CONFIG: |
+      log_level = "INFO"
+      backend "consul" {
+        address = "consul:8500"
+        advertise_addr = "http://consul:8300"
+        scheme = "http"
+        token = "root"
+      }
+      disable_mlock = true
+  networks:
+    - lictor-consul-network
+    - lictor-vault-network
+  expose:
+    - 8200
+  volumes:
+    - vault:/vault
+    - ../fixtures/vault/policies:/vault/config/policies:ro
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://0.0.0.0:8200/v1/sys/health"]
+    interval: 30s
+    timeout: 5s
+    retries: 10
+    start_period: 5s
+  cap_add:
+    - IPC_LOCK
+  command:
+    - /bin/sh
+    - -cex
+    - |
+      docker-entrypoint.sh server -dev &
+      while ! $$(vault status &> /dev/null); do echo "Trying to connect to vault"; sleep 2; done
+      vault audit enable file file_path=/vault/logs/vault_audit.log
+      vault auth enable approle
+      vault policy write lictor-approle /vault/config/policies/approle.hcl
+      vault write auth/approle/role/lictor policies="lictor-approle" role_id="lictor"
+      vault write auth/approle/role/lictor/custom-secret-id secret_id=$${SECRET_ID}
+      vault secrets enable consul
+      vault write consul/config/access address=$${CONSUL_HTTP_ADDR} token=$${CONSUL_HTTP_TOKEN}
+      vault write consul/roles/lictor policies=lictor
+      while sleep 1000; do :; done
+services:
+  consul-server-1:
+    <<: *my-logging
+    <<: *consul-proto
+    container_name: lictor-consul-server-1
+    hostname: lictor-consul-server-1
+    # ports:
+    #   - "8500:8500"
+  consul-server-2:
+    <<: *my-logging
+    <<: *consul-proto
+    container_name: lictor-consul-server-2
+    hostname: lictor-consul-server-2
+    # ports:
+    #   - "8501:8500"
+  consul-server-3:
+    <<: *my-logging
+    <<: *consul-proto
+    container_name: lictor-consul-server-3
+    hostname: lictor-consul-server-3
+    # ports:
+    #   - "8502:8500"
+  vault-server-1:
+    <<: *my-logging
+    <<: *vault-proto
+    container_name: lictor-vault-server-1
+    hostname: lictor-vault-server-1
+    depends_on:
+      - consul-server-1
+    links:
+      - consul-server-1:consul
+    # ports:
+    #   - "8200:8200"
+  vault-server-2:
+    <<: *my-logging
+    <<: *vault-proto
+    container_name: lictor-vault-server-2
+    hostname: lictor-vault-server-2
+    depends_on:
+      - consul-server-2
+    links:
+      - consul-server-2:consul
+    # ports:
+    #   - "8201:8200"
+  vault-server-3:
+    <<: *my-logging
+    <<: *vault-proto
+    container_name: lictor-vault-server-3
+    hostname: lictor-vault-server-3
+    depends_on:
+      - consul-server-3
+    links:
+      - consul-server-3:consul
+    # ports:
+    #   - "8202:8200"
+  workspace:
+    image: fjolsvin/vscode-lictor-alpine:latest
+    container_name: lictor-code
+    env_file:
+      - ".env"
+    depends_on:
+      - consul-server-1
+      - consul-server-2
+      - consul-server-3
+      - vault-server-1
+      - vault-server-2
+      - vault-server-3
+    networks:
+      - lictor-consul-network
+      - lictor-vault-network
+    links:
+      - consul-server-1:consul
+      - consul-server-1:consul-1
+      - consul-server-2:consul-2
+      - consul-server-3:consul-3
+      - vault-server-1:vault
+      - vault-server-1:vault-1
+      - vault-server-2:vault-2
+      - vault-server-3:vault-3
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../:/workspace:cached
+      - consul:/consul
+      - vault:/vault
+      # - lictor-vscode-extensions:/home/devel/.vscode-server/extensions
+      # - lictor-vscode-insiders-extensions:/home/devel/.vscode-server-insiders/extensions
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+    command:
+      - /bin/sh
+      - -cex
+      - |
+        sudo chown "`id -u`:docker" /var/run/docker.sock
+        sudo chown "`id -u`:`id -g`" /workspace -R
+        while sleep 1000; do :; done
+networks:
+  lictor-vault-network:
+  lictor-consul-network:
+volumes:
+  consul:
+  vault:
+  # lictor-vscode-extensions:
+  # lictor-vscode-insiders-extensions:
